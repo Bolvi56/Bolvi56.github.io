@@ -1,0 +1,20 @@
+{
+  "page_title": "Quaterniones vs Ángulos de Euler",
+  "heading": "Rotación con Quaternion vs Euler",
+  "subtitle": "Observa cómo un plano y su vector normal se reorientan en el espacio 3D, usando dos representaciones de rotación distintas.",
+  "panel_euler_title": "Ángulos de Euler",
+  "panel_quat_title": "Quaternion",
+  "mode_animate": "Animación",
+  "mode_manual": "Manual",
+  "euler_controls": "Controles de Euler (grados)",
+  "quat_controls": "Controles de Quaternion (eje + ángulo)",
+  "label_roll": "Roll",
+  "label_pitch": "Pitch",
+  "label_yaw": "Yaw",
+  "label_axis_x": "Eje X",
+  "label_axis_y": "Eje Y",
+  "label_axis_z": "Eje Z",
+  "label_angle": "Ángulo",
+  "gimbal_hint": "Consejo: pon el Pitch cerca de 90° y prueba cambiar Roll y Yaw — nota cómo el panel de Euler pierde un grado de libertad (gimbal lock), mientras que el de quaternion no.",
+  "footer_note": "Hecho con Three.js. Las rotaciones se calculan en vivo en tu navegador."
+}

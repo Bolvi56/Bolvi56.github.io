@@ -1,0 +1,20 @@
+{
+  "page_title": "쿼터니언 vs 오일러 각도",
+  "heading": "쿼터니언 vs 오일러 회전",
+  "subtitle": "평면과 그 법선 벡터가 3차원 공간에서 두 가지 방식으로 재배치되는 과정을 확인하세요.",
+  "panel_euler_title": "오일러 각도",
+  "panel_quat_title": "쿼터니언",
+  "mode_animate": "애니메이션",
+  "mode_manual": "수동",
+  "euler_controls": "오일러 각도 조절 (도)",
+  "quat_controls": "쿼터니언 조절 (축 + 각도)",
+  "label_roll": "롤",
+  "label_pitch": "피치",
+  "label_yaw": "요",
+  "label_axis_x": "X 축",
+  "label_axis_y": "Y 축",
+  "label_axis_z": "Z 축",
+  "label_angle": "각도",
+  "gimbal_hint": "팁: 피치를 90°에 가깝게 설정한 뒤 롤과 요를 바꿔보세요 — 오일러 패널은 자유도 하나를 잃는(짐벌락) 반면, 쿼터니언 패널은 그렇지 않습니다.",
+  "footer_note": "Three.js로 제작. 회전은 브라우저에서 실시간으로 계산됩니다."
+}

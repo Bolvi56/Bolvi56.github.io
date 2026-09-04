@@ -1,0 +1,20 @@
+{
+  "page_title": "Quaternions vs Euler Angles",
+  "heading": "Quaternion vs Euler Rotation",
+  "subtitle": "Watch how a plane and its normal vector are reoriented in 3D space, using two different rotation representations.",
+  "panel_euler_title": "Euler Angles",
+  "panel_quat_title": "Quaternion",
+  "mode_animate": "Animate",
+  "mode_manual": "Manual",
+  "euler_controls": "Euler controls (degrees)",
+  "quat_controls": "Quaternion controls (axis + angle)",
+  "label_roll": "Roll",
+  "label_pitch": "Pitch",
+  "label_yaw": "Yaw",
+  "label_axis_x": "Axis X",
+  "label_axis_y": "Axis Y",
+  "label_axis_z": "Axis Z",
+  "label_angle": "Angle",
+  "gimbal_hint": "Tip: set Pitch close to 90° and try changing Roll and Yaw — notice how the Euler panel loses a degree of freedom (gimbal lock), while the quaternion panel doesn't.",
+  "footer_note": "Built with Three.js. Rotations are computed live in your browser."
+}
