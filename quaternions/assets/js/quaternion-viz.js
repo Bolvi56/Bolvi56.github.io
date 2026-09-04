@@ -4,19 +4,6 @@
   Shared logic for the Euler vs Quaternion visualizer.
   This ONE file is used by index.html, es.html and ko.html (via quaternions.html
   + i18n) — it never changes between languages, only assets/i18n/*.json does.
-
-  WHAT'S ALREADY DONE FOR YOU:
-  - Three.js scene/camera/renderer/lights boilerplate (createScene)
-  - DOM wiring skeleton (init, event listeners)
-  - requestAnimationFrame loop
-
-  WHAT YOU NEED TO FILL IN (search for "TODO"):
-  1. createOrientableObject()      -> build the plane + normal arrow
-  2. applyEuler()                  -> rotate an object from roll/pitch/yaw (deg)
-  3. applyQuaternionAxisAngle()    -> rotate an object from axis + angle (deg)
-  4. eulerToQuaternion()           -> convert euler -> {w,x,y,z} for the readout
-  5. WAYPOINTS + animationLoop()   -> the auto-play sequence (lerp vs slerp)
-  6. onManualControlsChanged()     -> read sliders, update both panels + readouts
 */
 
 (function () {
@@ -26,27 +13,21 @@
   // 1. CONFIG
   // =====================================================================
 
-  // TODO: Define 3-4 target orientations to cycle through in "Animate" mode.
-  // Each waypoint should be expressed as an axis + angle (this maps directly
-  // to a quaternion via setFromAxisAngle, and you'll convert it to Euler too
-  // for the left panel). Make sure at least one waypoint pushes pitch close
-  // to +/-90 degrees around the Y axis — that's where Euler gimbal lock shows.
-  //
-  // Example shape (fill in real values):
-  // const WAYPOINTS = [
-  //   { axis: { x: 0, y: 1, z: 0 }, angleDeg: 0   },
-  //   { axis: { x: 1, y: 0, z: 0 }, angleDeg: 60  },
-  //   { axis: { x: 0, y: 1, z: 0 }, angleDeg: 90  },  // <- gimbal lock zone
-  //   { axis: { x: 0, y: 0, z: 1 }, angleDeg: 45  },
-  // ];
+  // Target orientations to cycle through in "Animate" mode, each as
+  // axis + angle (this maps directly to a quaternion). Waypoint index 2
+  // sits at 90° around Y, which is exactly where Euler gimbal lock shows.
   const WAYPOINTS = [
-    // TODO
+    { axis: { x: 0, y: 1, z: 0 }, angleDeg: 0   },
+    { axis: { x: 1, y: 0, z: 0 }, angleDeg: 60  },
+    { axis: { x: 0, y: 1, z: 0 }, angleDeg: 90  },  // <- gimbal lock zone
+    { axis: { x: 0, y: 0, z: 1 }, angleDeg: 45  },
   ];
 
   const SECONDS_PER_WAYPOINT = 3;
+  const EULER_ORDER = 'XYZ'; // roll=X, pitch=Y, yaw=Z — used everywhere, consistently
 
   // =====================================================================
-  // 2. SCENE SETUP (provided — you shouldn't need to touch this)
+  // 2. SCENE SETUP (unchanged)
   // =====================================================================
 
   function createScene(containerId) {
@@ -89,45 +70,82 @@
   // 3. THE ORIENTABLE OBJECT  (plane + its perpendicular / normal vector)
   // =====================================================================
 
-  // TODO: build a THREE.Group containing:
-  //   - a THREE.Mesh with THREE.PlaneGeometry(2, 1.2) and a
-  //     MeshStandardMaterial({ color, side: THREE.DoubleSide, transparent, opacity })
-  //   - a THREE.ArrowHelper pointing along the plane's normal (0,0,1 locally),
-  //     length ~1.5, so you can SEE the perpendicular direction rotate too
-  // Return the group. Rotating group.quaternion (or group.rotation) later
-  // will move both the plane and the arrow together, which is the whole point.
   function createOrientableObject(color) {
-    // TODO
-    return new THREE.Group(); // placeholder so the file still runs
+    const group = new THREE.Group();
+
+    // The plane itself. DoubleSide so it's visible from both faces,
+    // slightly transparent so the arrow reads clearly through it.
+    const geometry = new THREE.PlaneGeometry(2, 1.2);
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.55,
+    });
+    const plane = new THREE.Mesh(geometry, material);
+    group.add(plane);
+
+    // The perpendicular / normal vector. A PlaneGeometry's local normal
+    // points along +Z before any rotation, so the arrow starts there too —
+    // rotating the whole group keeps both in sync.
+    const normalDir = new THREE.Vector3(0, 0, 1);
+    const arrow = new THREE.ArrowHelper(normalDir, new THREE.Vector3(0, 0, 0), 1.5, color, 0.3, 0.15);
+    group.add(arrow);
+
+    return group;
   }
 
   // =====================================================================
-  // 4. ROTATION MATH — this is the part you're here to learn
+  // 4. ROTATION MATH
   // =====================================================================
 
-  // TODO: rotate `object` using Euler angles given in DEGREES.
-  // Hint: convert deg -> rad (THREE.MathUtils.degToRad), build a THREE.Euler
-  // with an explicit, fixed order (e.g. 'XYZ') and assign it to object.rotation
-  // or object.quaternion.setFromEuler(...).
   function applyEuler(object, rollDeg, pitchDeg, yawDeg) {
-    // TODO
+    const euler = new THREE.Euler(
+      THREE.MathUtils.degToRad(rollDeg),
+      THREE.MathUtils.degToRad(pitchDeg),
+      THREE.MathUtils.degToRad(yawDeg),
+      EULER_ORDER
+    );
+    object.quaternion.setFromEuler(euler);
   }
 
-  // TODO: rotate `object` using an axis-angle representation (this IS a
-  // quaternion under the hood).
-  // Hint: normalize the axis vector first (THREE.Vector3.normalize), then
-  // object.quaternion.setFromAxisAngle(normalizedAxis, THREE.MathUtils.degToRad(angleDeg))
   function applyQuaternionAxisAngle(object, axis, angleDeg) {
-    // TODO
+    const vec = new THREE.Vector3(axis.x, axis.y, axis.z);
+    if (vec.lengthSq() < 1e-8) return; // guard against a zero-length axis (all sliders at 0)
+    vec.normalize();
+    object.quaternion.setFromAxisAngle(vec, THREE.MathUtils.degToRad(angleDeg));
   }
 
-  // TODO: given current roll/pitch/yaw (deg), return the equivalent
-  // quaternion as {w, x, y, z} — used to update the numeric readout under
-  // the Euler panel so you can see the two representations line up.
-  // Hint: new THREE.Quaternion().setFromEuler(new THREE.Euler(...))
   function eulerToQuaternion(rollDeg, pitchDeg, yawDeg) {
-    // TODO
-    return { w: 1, x: 0, y: 0, z: 0 };
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+      THREE.MathUtils.degToRad(rollDeg),
+      THREE.MathUtils.degToRad(pitchDeg),
+      THREE.MathUtils.degToRad(yawDeg),
+      EULER_ORDER
+    ));
+    return { w: q.w, x: q.x, y: q.y, z: q.z };
+  }
+
+  function quaternionToEulerDeg(q) {
+    const e = new THREE.Euler().setFromQuaternion(q, EULER_ORDER);
+    return {
+      roll: THREE.MathUtils.radToDeg(e.x),
+      pitch: THREE.MathUtils.radToDeg(e.y),
+      yaw: THREE.MathUtils.radToDeg(e.z),
+    };
+  }
+
+  function updateReadouts(rollDeg, pitchDeg, yawDeg, quat) {
+    const eulerReadout = document.getElementById('readout-euler');
+    const quatReadout = document.getElementById('readout-quat');
+    if (eulerReadout) {
+      eulerReadout.textContent =
+        `roll: ${rollDeg.toFixed(1)}  pitch: ${pitchDeg.toFixed(1)}  yaw: ${yawDeg.toFixed(1)}`;
+    }
+    if (quatReadout) {
+      quatReadout.textContent =
+        `w: ${quat.w.toFixed(2)}  x: ${quat.x.toFixed(2)}  y: ${quat.y.toFixed(2)}  z: ${quat.z.toFixed(2)}`;
+    }
   }
 
   // =====================================================================
@@ -139,33 +157,81 @@
   let mode = 'animate'; // 'animate' | 'manual'
   let animStartTime = null;
 
-  // TODO: implement the waypoint-to-waypoint animation.
-  // For the QUATERNION panel: build a THREE.Quaternion for the "from" and
-  // "to" waypoint, and call THREE.Quaternion.slerp(from, to, out, t) each
-  // frame — this is the smooth, gimbal-lock-free path.
-  // For the EULER panel: convert each waypoint to roll/pitch/yaw and
-  // linearly interpolate (THREE.MathUtils.lerp) each angle independently —
-  // this is what most naive rotation code does, and it's what breaks down
-  // near pitch = +/-90.
-  // Update readouts (#readout-euler, #readout-quat) with the live numbers
-  // each frame too, so the divergence is visible, not just implied.
+  // Cache each waypoint's quaternion + equivalent Euler angles once,
+  // instead of recomputing every animation frame.
+  let waypointQuats = null;
+  let waypointEulers = null;
+
+  function ensureWaypointCache() {
+    if (waypointQuats) return;
+    waypointQuats = WAYPOINTS.map((wp) => {
+      const axis = new THREE.Vector3(wp.axis.x, wp.axis.y, wp.axis.z).normalize();
+      return new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(wp.angleDeg));
+    });
+    waypointEulers = waypointQuats.map(quaternionToEulerDeg);
+  }
+
   function stepAnimation(elapsedSeconds) {
-    // TODO
+    if (WAYPOINTS.length < 2) return;
+    ensureWaypointCache();
+
+    const totalWaypoints = WAYPOINTS.length;
+    const loopDuration = SECONDS_PER_WAYPOINT * totalWaypoints;
+    const timeInLoop = elapsedSeconds % loopDuration;
+
+    const fromIndex = Math.floor(timeInLoop / SECONDS_PER_WAYPOINT);
+    const toIndex = (fromIndex + 1) % totalWaypoints;
+    const t = (timeInLoop % SECONDS_PER_WAYPOINT) / SECONDS_PER_WAYPOINT; // 0..1 within this leg
+
+    // --- Quaternion panel: spherical interpolation (slerp). Smooth, constant
+    // angular speed, no loss of degrees of freedom.
+    const qOut = waypointQuats[fromIndex].clone().slerp(waypointQuats[toIndex], t);
+    quatObj.quaternion.copy(qOut);
+
+    // --- Euler panel: linearly interpolate each angle independently. This is
+    // what naive rotation code usually does — and it's what breaks down near
+    // pitch = +/-90 (gimbal lock): you'll see roll/yaw jump or the motion
+    // twist unnaturally compared to the quaternion panel right next to it.
+    const eFrom = waypointEulers[fromIndex];
+    const eTo = waypointEulers[toIndex];
+    const roll = THREE.MathUtils.lerp(eFrom.roll, eTo.roll, t);
+    const pitch = THREE.MathUtils.lerp(eFrom.pitch, eTo.pitch, t);
+    const yaw = THREE.MathUtils.lerp(eFrom.yaw, eTo.yaw, t);
+    applyEuler(eulerObj, roll, pitch, yaw);
+
+    updateReadouts(roll, pitch, yaw, qOut);
   }
 
   // =====================================================================
   // 6. MANUAL MODE — sliders drive both panels directly
   // =====================================================================
 
-  // TODO: read #slider-roll/pitch/yaw and #slider-axis-x/y/z/angle,
-  // call applyEuler() on eulerObj and applyQuaternionAxisAngle() on quatObj,
-  // then update the readouts and the <output> elements next to each slider.
   function onManualControlsChanged() {
-    // TODO
+    const roll = parseFloat(document.getElementById('slider-roll').value);
+    const pitch = parseFloat(document.getElementById('slider-pitch').value);
+    const yaw = parseFloat(document.getElementById('slider-yaw').value);
+
+    applyEuler(eulerObj, roll, pitch, yaw);
+    document.getElementById('out-roll').textContent = roll.toFixed(0);
+    document.getElementById('out-pitch').textContent = pitch.toFixed(0);
+    document.getElementById('out-yaw').textContent = yaw.toFixed(0);
+
+    const axisX = parseFloat(document.getElementById('slider-axis-x').value);
+    const axisY = parseFloat(document.getElementById('slider-axis-y').value);
+    const axisZ = parseFloat(document.getElementById('slider-axis-z').value);
+    const angle = parseFloat(document.getElementById('slider-angle').value);
+
+    applyQuaternionAxisAngle(quatObj, { x: axisX, y: axisY, z: axisZ }, angle);
+    document.getElementById('out-angle').textContent = angle.toFixed(0);
+
+    // Readouts: left panel shows its own Euler values (redundant with sliders
+    // but useful once you add more panels later); right panel shows the
+    // ACTUAL live quaternion of quatObj, straight from Three.js.
+    updateReadouts(roll, pitch, yaw, quatObj.quaternion);
   }
 
   // =====================================================================
-  // 7. WIRING — mostly done for you
+  // 7. WIRING
   // =====================================================================
 
   function setMode(newMode) {
@@ -173,7 +239,11 @@
     document.getElementById('btn-mode-animate').classList.toggle('active', mode === 'animate');
     document.getElementById('btn-mode-manual').classList.toggle('active', mode === 'manual');
     document.getElementById('manual-controls').hidden = mode !== 'manual';
-    if (mode === 'animate') animStartTime = null; // restart the clock
+    if (mode === 'animate') {
+      animStartTime = null; // restart the clock
+    } else {
+      onManualControlsChanged(); // sync panels to current slider positions immediately
+    }
   }
 
   function init() {
@@ -198,7 +268,6 @@
 
     let lastTime = performance.now();
     function frame(now) {
-      const dt = (now - lastTime) / 1000;
       lastTime = now;
 
       if (mode === 'animate') {
