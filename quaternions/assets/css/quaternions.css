@@ -84,11 +84,13 @@ body {
   white-space: pre-wrap;
 }
 
+/* ---------- Mode toggle (Animate / Manual) ---------- */
+
 .mode-toggle {
   display: flex;
   gap: 0.5rem;
   justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .mode-toggle button {
@@ -107,14 +109,72 @@ body {
   border-color: var(--accent);
 }
 
-.manual-controls {
+/* ---------- Sync toolbar (Sync values / Sync views) ---------- */
+
+.sync-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.sync-toolbar button {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.sync-toolbar button.active {
+  color: var(--bg);
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+.sync-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- Manual controls ---------- */
+
+.manual-controls-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.manual-controls-toolbar button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.manual-controls-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.manual-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
 }
 
 @media (max-width: 720px) {
-  .manual-controls { grid-template-columns: 1fr; }
+  .manual-fields { grid-template-columns: 1fr; }
+}
+
+.manual-controls.readonly {
+  opacity: 0.55;
 }
 
 fieldset {
@@ -138,8 +198,12 @@ fieldset label {
   font-size: 0.85rem;
 }
 
+fieldset input:disabled {
+  cursor: not-allowed;
+}
+
 .hint {
-  grid-column: 1 / -1;
+  margin-top: 1rem;
   color: var(--accent-2);
   font-size: 0.85rem;
 }

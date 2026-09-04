@@ -2,8 +2,14 @@
   quaternion-viz.js
   -----------------
   Shared logic for the Euler vs Quaternion visualizer.
-  This ONE file is used by index.html, es.html and ko.html (via quaternions.html
-  + i18n) — it never changes between languages, only assets/i18n/*.json does.
+
+  NEW IN THIS VERSION:
+  - Sync Euler <-> Quaternion values: moving either control set updates the
+    other panel AND its sliders to the equivalent orientation.
+  - Sync camera views: links the two OrbitControls together.
+  - Reset button: returns both panels + all sliders to identity.
+  - Manual sliders stay visible (disabled) during Animate mode and track the
+    live animated pose, so switching to Manual never causes a jump.
 */
 
 (function () {
@@ -13,9 +19,6 @@
   // 1. CONFIG
   // =====================================================================
 
-  // Target orientations to cycle through in "Animate" mode, each as
-  // axis + angle (this maps directly to a quaternion). Waypoint index 2
-  // sits at 90° around Y, which is exactly where Euler gimbal lock shows.
   const WAYPOINTS = [
     { axis: { x: 0, y: 1, z: 0 }, angleDeg: 0   },
     { axis: { x: 1, y: 0, z: 0 }, angleDeg: 60  },
@@ -27,7 +30,7 @@
   const EULER_ORDER = 'XYZ'; // roll=X, pitch=Y, yaw=Z — used everywhere, consistently
 
   // =====================================================================
-  // 2. SCENE SETUP (unchanged)
+  // 2. SCENE SETUP
   // =====================================================================
 
   function createScene(containerId) {
@@ -46,6 +49,7 @@
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.target.set(0, 0, 0);
 
     scene.add(new THREE.AxesHelper(1.5));
     scene.add(new THREE.GridHelper(4, 8, 0x333844, 0x1a1e28));
@@ -67,14 +71,12 @@
   }
 
   // =====================================================================
-  // 3. THE ORIENTABLE OBJECT  (plane + its perpendicular / normal vector)
+  // 3. THE ORIENTABLE OBJECT
   // =====================================================================
 
   function createOrientableObject(color) {
     const group = new THREE.Group();
 
-    // The plane itself. DoubleSide so it's visible from both faces,
-    // slightly transparent so the arrow reads clearly through it.
     const geometry = new THREE.PlaneGeometry(2, 1.2);
     const material = new THREE.MeshStandardMaterial({
       color,
@@ -85,9 +87,6 @@
     const plane = new THREE.Mesh(geometry, material);
     group.add(plane);
 
-    // The perpendicular / normal vector. A PlaneGeometry's local normal
-    // points along +Z before any rotation, so the arrow starts there too —
-    // rotating the whole group keeps both in sync.
     const normalDir = new THREE.Vector3(0, 0, 1);
     const arrow = new THREE.ArrowHelper(normalDir, new THREE.Vector3(0, 0, 0), 1.5, color, 0.3, 0.15);
     group.add(arrow);
@@ -111,19 +110,9 @@
 
   function applyQuaternionAxisAngle(object, axis, angleDeg) {
     const vec = new THREE.Vector3(axis.x, axis.y, axis.z);
-    if (vec.lengthSq() < 1e-8) return; // guard against a zero-length axis (all sliders at 0)
+    if (vec.lengthSq() < 1e-8) return;
     vec.normalize();
     object.quaternion.setFromAxisAngle(vec, THREE.MathUtils.degToRad(angleDeg));
-  }
-
-  function eulerToQuaternion(rollDeg, pitchDeg, yawDeg) {
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(
-      THREE.MathUtils.degToRad(rollDeg),
-      THREE.MathUtils.degToRad(pitchDeg),
-      THREE.MathUtils.degToRad(yawDeg),
-      EULER_ORDER
-    ));
-    return { w: q.w, x: q.x, y: q.y, z: q.z };
   }
 
   function quaternionToEulerDeg(q) {
@@ -135,21 +124,59 @@
     };
   }
 
-  function updateReadouts(rollDeg, pitchDeg, yawDeg, quat) {
-    const eulerReadout = document.getElementById('readout-euler');
-    const quatReadout = document.getElementById('readout-quat');
-    if (eulerReadout) {
-      eulerReadout.textContent =
+  // Inverse of setFromAxisAngle: recover {axis, angleDeg} from a quaternion.
+  function quaternionToAxisAngle(q) {
+    const qn = q.clone().normalize();
+    const w = THREE.MathUtils.clamp(qn.w, -1, 1);
+    const angleRad = 2 * Math.acos(w);
+    const s = Math.sqrt(1 - w * w);
+    let axis;
+    if (s < 1e-6) {
+      axis = { x: 0, y: 1, z: 0 }; // angle ~0, axis is arbitrary
+    } else {
+      axis = { x: qn.x / s, y: qn.y / s, z: qn.z / s };
+    }
+    return { axis, angleDeg: THREE.MathUtils.radToDeg(angleRad) };
+  }
+
+  function setEulerReadout(rollDeg, pitchDeg, yawDeg) {
+    const el = document.getElementById('readout-euler');
+    if (el) {
+      el.textContent =
         `roll: ${rollDeg.toFixed(1)}  pitch: ${pitchDeg.toFixed(1)}  yaw: ${yawDeg.toFixed(1)}`;
     }
-    if (quatReadout) {
-      quatReadout.textContent =
+  }
+
+  function setQuatReadout(quat) {
+    const el = document.getElementById('readout-quat');
+    if (el) {
+      el.textContent =
         `w: ${quat.w.toFixed(2)}  x: ${quat.x.toFixed(2)}  y: ${quat.y.toFixed(2)}  z: ${quat.z.toFixed(2)}`;
     }
   }
 
+  // Push numeric values into the Euler sliders/outputs WITHOUT re-triggering
+  // their 'input' listeners (setting .value programmatically doesn't fire it).
+  function syncEulerSlidersFromValues(rollDeg, pitchDeg, yawDeg) {
+    document.getElementById('slider-roll').value = rollDeg.toFixed(0);
+    document.getElementById('slider-pitch').value = pitchDeg.toFixed(0);
+    document.getElementById('slider-yaw').value = yawDeg.toFixed(0);
+    document.getElementById('out-roll').textContent = rollDeg.toFixed(0);
+    document.getElementById('out-pitch').textContent = pitchDeg.toFixed(0);
+    document.getElementById('out-yaw').textContent = yawDeg.toFixed(0);
+  }
+
+  function syncAxisAngleSlidersFromQuaternion(q) {
+    const { axis, angleDeg } = quaternionToAxisAngle(q);
+    document.getElementById('slider-axis-x').value = axis.x.toFixed(2);
+    document.getElementById('slider-axis-y').value = axis.y.toFixed(2);
+    document.getElementById('slider-axis-z').value = axis.z.toFixed(2);
+    document.getElementById('slider-angle').value = angleDeg.toFixed(0);
+    document.getElementById('out-angle').textContent = angleDeg.toFixed(0);
+  }
+
   // =====================================================================
-  // 5. ANIMATE MODE — auto-play through WAYPOINTS
+  // 5. STATE
   // =====================================================================
 
   let eulerObj, quatObj;
@@ -157,8 +184,10 @@
   let mode = 'animate'; // 'animate' | 'manual'
   let animStartTime = null;
 
-  // Cache each waypoint's quaternion + equivalent Euler angles once,
-  // instead of recomputing every animation frame.
+  let valuesSynced = false;
+  let viewsSynced = false;
+  let isSyncingViews = false;
+
   let waypointQuats = null;
   let waypointEulers = null;
 
@@ -171,6 +200,10 @@
     waypointEulers = waypointQuats.map(quaternionToEulerDeg);
   }
 
+  // =====================================================================
+  // 6. ANIMATE MODE
+  // =====================================================================
+
   function stepAnimation(elapsedSeconds) {
     if (WAYPOINTS.length < 2) return;
     ensureWaypointCache();
@@ -181,17 +214,13 @@
 
     const fromIndex = Math.floor(timeInLoop / SECONDS_PER_WAYPOINT);
     const toIndex = (fromIndex + 1) % totalWaypoints;
-    const t = (timeInLoop % SECONDS_PER_WAYPOINT) / SECONDS_PER_WAYPOINT; // 0..1 within this leg
+    const t = (timeInLoop % SECONDS_PER_WAYPOINT) / SECONDS_PER_WAYPOINT;
 
-    // --- Quaternion panel: spherical interpolation (slerp). Smooth, constant
-    // angular speed, no loss of degrees of freedom.
+    // Quaternion panel: slerp — smooth, constant angular speed.
     const qOut = waypointQuats[fromIndex].clone().slerp(waypointQuats[toIndex], t);
     quatObj.quaternion.copy(qOut);
 
-    // --- Euler panel: linearly interpolate each angle independently. This is
-    // what naive rotation code usually does — and it's what breaks down near
-    // pitch = +/-90 (gimbal lock): you'll see roll/yaw jump or the motion
-    // twist unnaturally compared to the quaternion panel right next to it.
+    // Euler panel: lerp each angle independently — breaks down near gimbal lock.
     const eFrom = waypointEulers[fromIndex];
     const eTo = waypointEulers[toIndex];
     const roll = THREE.MathUtils.lerp(eFrom.roll, eTo.roll, t);
@@ -199,50 +228,146 @@
     const yaw = THREE.MathUtils.lerp(eFrom.yaw, eTo.yaw, t);
     applyEuler(eulerObj, roll, pitch, yaw);
 
-    updateReadouts(roll, pitch, yaw, qOut);
+    setEulerReadout(roll, pitch, yaw);
+    setQuatReadout(qOut);
+
+    // Keep the (disabled) manual sliders tracking the live animated pose,
+    // so switching to Manual mode never causes a jump.
+    syncEulerSlidersFromValues(roll, pitch, yaw);
+    syncAxisAngleSlidersFromQuaternion(qOut);
   }
 
   // =====================================================================
-  // 6. MANUAL MODE — sliders drive both panels directly
+  // 7. MANUAL MODE
   // =====================================================================
 
-  function onManualControlsChanged() {
+  function eulerSlidersChanged() {
     const roll = parseFloat(document.getElementById('slider-roll').value);
     const pitch = parseFloat(document.getElementById('slider-pitch').value);
     const yaw = parseFloat(document.getElementById('slider-yaw').value);
 
-    applyEuler(eulerObj, roll, pitch, yaw);
     document.getElementById('out-roll').textContent = roll.toFixed(0);
     document.getElementById('out-pitch').textContent = pitch.toFixed(0);
     document.getElementById('out-yaw').textContent = yaw.toFixed(0);
 
+    applyEuler(eulerObj, roll, pitch, yaw);
+    setEulerReadout(roll, pitch, yaw);
+
+    if (valuesSynced) {
+      applyEuler(quatObj, roll, pitch, yaw); // identical orientation, different path
+      setQuatReadout(quatObj.quaternion);
+      syncAxisAngleSlidersFromQuaternion(quatObj.quaternion);
+    }
+  }
+
+  function quatSlidersChanged() {
     const axisX = parseFloat(document.getElementById('slider-axis-x').value);
     const axisY = parseFloat(document.getElementById('slider-axis-y').value);
     const axisZ = parseFloat(document.getElementById('slider-axis-z').value);
     const angle = parseFloat(document.getElementById('slider-angle').value);
 
-    applyQuaternionAxisAngle(quatObj, { x: axisX, y: axisY, z: axisZ }, angle);
     document.getElementById('out-angle').textContent = angle.toFixed(0);
 
-    // Readouts: left panel shows its own Euler values (redundant with sliders
-    // but useful once you add more panels later); right panel shows the
-    // ACTUAL live quaternion of quatObj, straight from Three.js.
-    updateReadouts(roll, pitch, yaw, quatObj.quaternion);
+    applyQuaternionAxisAngle(quatObj, { x: axisX, y: axisY, z: axisZ }, angle);
+    setQuatReadout(quatObj.quaternion);
+
+    if (valuesSynced) {
+      eulerObj.quaternion.copy(quatObj.quaternion);
+      const e = quaternionToEulerDeg(quatObj.quaternion);
+      setEulerReadout(e.roll, e.pitch, e.yaw);
+      syncEulerSlidersFromValues(e.roll, e.pitch, e.yaw);
+    }
+  }
+
+  function resetManualControls() {
+    document.getElementById('slider-roll').value = 0;
+    document.getElementById('slider-pitch').value = 0;
+    document.getElementById('slider-yaw').value = 0;
+    document.getElementById('slider-axis-x').value = 0;
+    document.getElementById('slider-axis-y').value = 1;
+    document.getElementById('slider-axis-z').value = 0;
+    document.getElementById('slider-angle').value = 0;
+    document.getElementById('out-roll').textContent = '0';
+    document.getElementById('out-pitch').textContent = '0';
+    document.getElementById('out-yaw').textContent = '0';
+    document.getElementById('out-angle').textContent = '0';
+
+    eulerObj.quaternion.identity();
+    quatObj.quaternion.identity();
+    setEulerReadout(0, 0, 0);
+    setQuatReadout(quatObj.quaternion);
   }
 
   // =====================================================================
-  // 7. WIRING
+  // 8. SYNC TOGGLES
+  // =====================================================================
+
+  function setValuesSynced(on) {
+    valuesSynced = on;
+    document.getElementById('btn-sync-values').classList.toggle('active', valuesSynced);
+    if (valuesSynced && mode === 'manual') {
+      eulerSlidersChanged(); // align quat panel to current euler sliders immediately
+    }
+  }
+
+  function copyCamera(fromSceneObj, toSceneObj) {
+    toSceneObj.camera.position.copy(fromSceneObj.camera.position);
+    toSceneObj.controls.target.copy(fromSceneObj.controls.target);
+    toSceneObj.controls.update();
+  }
+
+  function setViewsSynced(on) {
+    viewsSynced = on;
+    document.getElementById('btn-sync-views').classList.toggle('active', viewsSynced);
+    if (viewsSynced) {
+      copyCamera(eulerScene, quatScene); // align immediately when turned on
+    }
+  }
+
+  function linkCameraControls() {
+    eulerScene.controls.addEventListener('change', () => {
+      if (!viewsSynced || isSyncingViews) return;
+      isSyncingViews = true;
+      copyCamera(eulerScene, quatScene);
+      isSyncingViews = false;
+    });
+    quatScene.controls.addEventListener('change', () => {
+      if (!viewsSynced || isSyncingViews) return;
+      isSyncingViews = true;
+      copyCamera(quatScene, eulerScene);
+      isSyncingViews = false;
+    });
+  }
+
+  // =====================================================================
+  // 9. WIRING
   // =====================================================================
 
   function setMode(newMode) {
     mode = newMode;
-    document.getElementById('btn-mode-animate').classList.toggle('active', mode === 'animate');
-    document.getElementById('btn-mode-manual').classList.toggle('active', mode === 'manual');
-    document.getElementById('manual-controls').hidden = mode !== 'manual';
-    if (mode === 'animate') {
-      animStartTime = null; // restart the clock
+    const isManual = mode === 'manual';
+
+    document.getElementById('btn-mode-animate').classList.toggle('active', !isManual);
+    document.getElementById('btn-mode-manual').classList.toggle('active', isManual);
+
+    document.getElementById('manual-controls').classList.toggle('readonly', !isManual);
+
+    [
+      'slider-roll', 'slider-pitch', 'slider-yaw',
+      'slider-axis-x', 'slider-axis-y', 'slider-axis-z', 'slider-angle',
+    ].forEach((id) => {
+      document.getElementById(id).disabled = !isManual;
+    });
+    document.getElementById('btn-reset').disabled = !isManual;
+    document.getElementById('btn-sync-values').disabled = !isManual;
+
+    if (!isManual) {
+      animStartTime = null; // restart the animation clock
     } else {
-      onManualControlsChanged(); // sync panels to current slider positions immediately
+      // Lock both panels exactly where the (already-synced) sliders show,
+      // so there's no jump when leaving Animate mode.
+      eulerSlidersChanged();
+      quatSlidersChanged();
     }
   }
 
@@ -255,21 +380,24 @@
     eulerScene.scene.add(eulerObj);
     quatScene.scene.add(quatObj);
 
+    linkCameraControls();
+
     document.getElementById('btn-mode-animate').addEventListener('click', () => setMode('animate'));
     document.getElementById('btn-mode-manual').addEventListener('click', () => setMode('manual'));
+    document.getElementById('btn-reset').addEventListener('click', resetManualControls);
+    document.getElementById('btn-sync-values').addEventListener('click', () => setValuesSynced(!valuesSynced));
+    document.getElementById('btn-sync-views').addEventListener('click', () => setViewsSynced(!viewsSynced));
 
-    [
-      'slider-roll', 'slider-pitch', 'slider-yaw',
-      'slider-axis-x', 'slider-axis-y', 'slider-axis-z', 'slider-angle',
-    ].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('input', onManualControlsChanged);
+    ['slider-roll', 'slider-pitch', 'slider-yaw'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', eulerSlidersChanged);
+    });
+    ['slider-axis-x', 'slider-axis-y', 'slider-axis-z', 'slider-angle'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', quatSlidersChanged);
     });
 
-    let lastTime = performance.now();
-    function frame(now) {
-      lastTime = now;
+    setMode('animate'); // establishes correct disabled/readonly state on load
 
+    function frame(now) {
       if (mode === 'animate') {
         if (animStartTime === null) animStartTime = now;
         stepAnimation((now - animStartTime) / 1000);
