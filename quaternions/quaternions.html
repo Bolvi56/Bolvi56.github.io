@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="page_title">Quaternions vs Euler Angles</title>
+  <link rel="stylesheet" href="assets/css/quaternions.css" />
+</head>
+<body>
+
+  <header class="q-header">
+    <h1 data-i18n="heading">Quaternion vs Euler Rotation</h1>
+    <p data-i18n="subtitle">
+      Watch how a plane and its normal vector are reoriented in 3D space,
+      using two different rotation representations.
+    </p>
+  </header>
+
+  <main class="q-main">
+
+    <!-- Two side-by-side 3D panels -->
+    <section class="viz-grid">
+      <div class="panel" id="panel-euler">
+        <h2 data-i18n="panel_euler_title">Euler Angles</h2>
+        <div class="canvas-wrap" id="canvas-euler"></div>
+        <pre class="readout" id="readout-euler">roll: 0.0  pitch: 0.0  yaw: 0.0</pre>
+      </div>
+
+      <div class="panel" id="panel-quat">
+        <h2 data-i18n="panel_quat_title">Quaternion</h2>
+        <div class="canvas-wrap" id="canvas-quat"></div>
+        <pre class="readout" id="readout-quat">w: 1.0  x: 0.0  y: 0.0  z: 0.0</pre>
+      </div>
+    </section>
+
+    <!-- Mode switch -->
+    <section class="mode-toggle" role="group" aria-label="Mode">
+      <button id="btn-mode-animate" class="active" data-i18n="mode_animate">Animate</button>
+      <button id="btn-mode-manual" data-i18n="mode_manual">Manual</button>
+    </section>
+
+    <!-- Manual controls (hidden until "Manual" is selected) -->
+    <section class="manual-controls" id="manual-controls" hidden>
+
+      <fieldset>
+        <legend data-i18n="euler_controls">Euler controls (degrees)</legend>
+
+        <label>
+          <span data-i18n="label_roll">Roll</span>
+          <input type="range" id="slider-roll" min="-180" max="180" step="1" value="0" />
+          <output id="out-roll">0</output>
+        </label>
+
+        <label>
+          <span data-i18n="label_pitch">Pitch</span>
+          <input type="range" id="slider-pitch" min="-180" max="180" step="1" value="0" />
+          <output id="out-pitch">0</output>
+        </label>
+
+        <label>
+          <span data-i18n="label_yaw">Yaw</span>
+          <input type="range" id="slider-yaw" min="-180" max="180" step="1" value="0" />
+          <output id="out-yaw">0</output>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend data-i18n="quat_controls">Quaternion controls (axis + angle)</legend>
+
+        <label>
+          <span data-i18n="label_axis_x">Axis X</span>
+          <input type="range" id="slider-axis-x" min="-1" max="1" step="0.01" value="0" />
+        </label>
+        <label>
+          <span data-i18n="label_axis_y">Axis Y</span>
+          <input type="range" id="slider-axis-y" min="-1" max="1" step="0.01" value="1" />
+        </label>
+        <label>
+          <span data-i18n="label_axis_z">Axis Z</span>
+          <input type="range" id="slider-axis-z" min="-1" max="1" step="0.01" value="0" />
+        </label>
+        <label>
+          <span data-i18n="label_angle">Angle</span>
+          <input type="range" id="slider-angle" min="-180" max="180" step="1" value="0" />
+          <output id="out-angle">0</output>
+        </label>
+      </fieldset>
+
+      <p class="hint" data-i18n="gimbal_hint">
+        Tip: set Pitch close to 90° and try changing Roll and Yaw — notice how the Euler
+        panel loses a degree of freedom (gimbal lock), while the quaternion panel doesn't.
+      </p>
+    </section>
+
+  </main>
+
+  <footer class="q-footer" data-i18n="footer_note">
+    Built with Three.js. Rotations are computed live in your browser.
+  </footer>
+
+  <!-- Three.js core (r128) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <!-- OrbitControls addon, matching r128 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script src="assets/js/i18n.js"></script>
+  <script src="assets/js/quaternion-viz.js"></script>
+</body>
+</html>
